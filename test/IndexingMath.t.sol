@@ -311,7 +311,9 @@ contract IndexingMathTests is Test {
 
         // NOTE: Rounding up twice can inflate the principal by up to `ceil(EXP_SCALED_ONE / index)`, so reserve the
         //       full worst-case headroom for the current `index` before the round trip.
-        uint112 maxRoundTripInflation_ = uint112((_EXP_SCALED_ONE + index - 1) / index);
+        // NOTE: Widen to uint256 before adding, since `_EXP_SCALED_ONE + index` overflows a uint128 for indexes
+        //       within 1e12 of `type(uint128).max`.
+        uint112 maxRoundTripInflation_ = uint112((uint256(_EXP_SCALED_ONE) + index - 1) / index);
         uint112 boundedPrincipal_ = uint112(bound(principal, 0, type(uint112).max - maxRoundTripInflation_));
 
         // Rounding the present amount up and back up can never deflate the principal.
@@ -321,6 +323,13 @@ contract IndexingMathTests is Test {
             ),
             boundedPrincipal_
         );
+    }
+
+    /// @dev Pins the round trip at the top of the index range, where the worst-case inflation headroom is computed.
+    ///      Regression: the headroom used to be derived in uint128 arithmetic, which overflowed here.
+    function test_roundTrip_atMaxIndex() external view {
+        this.testFuzz_roundTrip(1, type(uint128).max);
+        this.testFuzz_roundTrip(type(uint112).max, type(uint128).max);
     }
 
     function testFuzz_getSafePrincipalAmountRoundedUp(uint112 principal, uint128 index, uint112 maxPrincipalAmount)
