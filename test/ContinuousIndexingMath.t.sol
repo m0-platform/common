@@ -80,6 +80,12 @@ contract ContinuousIndexingMathTests is Test {
         assertEqPrecision((oneDayRate * oneDayRate) / oneInExp, twoDayRate, 1e1);
     }
 
+    /// @dev The tests below feed `ContinuousIndexingMath` indices straight into `IndexingMath`, which is only sound
+    ///      while both libraries scale by the same one.
+    function test_expScaledOneMatchesIndexingMath() external pure {
+        assertEq(ContinuousIndexingMath.EXP_SCALED_ONE, IndexingMath.EXP_SCALED_ONE);
+    }
+
     function test_multiplyThenDivide_100apy() external view {
         uint112 amount = 1_000e6;
         uint128 sevenDayRate = continuousIndexingMath.getContinuousIndex(_EXP_SCALED_ONE, 7 days);
