@@ -86,20 +86,32 @@ contract ContinuousIndexingMathTests is Test {
         uint128 thirtyDayRate = continuousIndexingMath.getContinuousIndex(_EXP_SCALED_ONE, 30 days);
 
         assertEq(
-            IndexingMath.divide240By128Down(IndexingMath.multiply112By128Down(amount, sevenDayRate), sevenDayRate),
+            IndexingMath.getPrincipalAmountRoundedDown(
+                IndexingMath.getPresentAmountRoundedDown(amount, sevenDayRate),
+                sevenDayRate
+            ),
             amount - 1
         );
         assertEq(
-            IndexingMath.multiply112By128Down(IndexingMath.divide240By128Down(amount, sevenDayRate), sevenDayRate),
+            IndexingMath.getPresentAmountRoundedDown(
+                IndexingMath.getPrincipalAmountRoundedDown(amount, sevenDayRate),
+                sevenDayRate
+            ),
             amount - 1
         );
 
         assertEq(
-            IndexingMath.divide240By128Down(IndexingMath.multiply112By128Down(amount, thirtyDayRate), thirtyDayRate),
+            IndexingMath.getPrincipalAmountRoundedDown(
+                IndexingMath.getPresentAmountRoundedDown(amount, thirtyDayRate),
+                thirtyDayRate
+            ),
             amount - 1
         );
         assertEq(
-            IndexingMath.multiply112By128Down(IndexingMath.divide240By128Down(amount, thirtyDayRate), thirtyDayRate),
+            IndexingMath.getPresentAmountRoundedDown(
+                IndexingMath.getPrincipalAmountRoundedDown(amount, thirtyDayRate),
+                thirtyDayRate
+            ),
             amount - 1
         );
     }
@@ -110,20 +122,32 @@ contract ContinuousIndexingMathTests is Test {
         uint128 thirtyDayRate = continuousIndexingMath.getContinuousIndex((_EXP_SCALED_ONE * 6) / 100, 30 days);
 
         assertEq(
-            IndexingMath.divide240By128Down(IndexingMath.multiply112By128Down(amount, sevenDayRate), sevenDayRate),
+            IndexingMath.getPrincipalAmountRoundedDown(
+                IndexingMath.getPresentAmountRoundedDown(amount, sevenDayRate),
+                sevenDayRate
+            ),
             amount - 1
         );
         assertEq(
-            IndexingMath.multiply112By128Down(IndexingMath.divide240By128Down(amount, sevenDayRate), sevenDayRate),
+            IndexingMath.getPresentAmountRoundedDown(
+                IndexingMath.getPrincipalAmountRoundedDown(amount, sevenDayRate),
+                sevenDayRate
+            ),
             amount - 1
         );
 
         assertEq(
-            IndexingMath.divide240By128Down(IndexingMath.multiply112By128Down(amount, thirtyDayRate), thirtyDayRate),
+            IndexingMath.getPrincipalAmountRoundedDown(
+                IndexingMath.getPresentAmountRoundedDown(amount, thirtyDayRate),
+                thirtyDayRate
+            ),
             amount - 1
         );
         assertEq(
-            IndexingMath.multiply112By128Down(IndexingMath.divide240By128Down(amount, thirtyDayRate), thirtyDayRate),
+            IndexingMath.getPresentAmountRoundedDown(
+                IndexingMath.getPrincipalAmountRoundedDown(amount, thirtyDayRate),
+                thirtyDayRate
+            ),
             amount - 1
         );
     }
