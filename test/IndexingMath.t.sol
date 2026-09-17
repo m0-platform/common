@@ -248,6 +248,9 @@ contract IndexingMathTests is Test {
         //       `uint112` reverts rather than being capped at `maxPrincipalAmount`.
         vm.expectRevert(UIntMath.InvalidUInt112.selector);
         _indexingMath.getSafePrincipalAmountRoundedUp(uint256(type(uint112).max) + 1, _EXP_SCALED_ONE, 1_000e6);
+
+        vm.expectRevert(UIntMath.InvalidUInt112.selector);
+        _indexingMath.getSafePrincipalAmountRoundedUp(type(uint112).max, _EXP_SCALED_ONE - 1, 1_000e6);
     }
 
     function test_getSafePrincipalAmountRoundedUp_scalingLimit() external {
