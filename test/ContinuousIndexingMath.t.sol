@@ -80,26 +80,44 @@ contract ContinuousIndexingMathTests is Test {
         assertEqPrecision((oneDayRate * oneDayRate) / oneInExp, twoDayRate, 1e1);
     }
 
+    /// @dev The tests below feed `ContinuousIndexingMath` indices straight into `IndexingMath`, which is only sound
+    ///      while both libraries scale by the same one.
+    function test_expScaledOneMatchesIndexingMath() external pure {
+        assertEq(ContinuousIndexingMath.EXP_SCALED_ONE, IndexingMath.EXP_SCALED_ONE);
+    }
+
     function test_multiplyThenDivide_100apy() external view {
         uint112 amount = 1_000e6;
         uint128 sevenDayRate = continuousIndexingMath.getContinuousIndex(_EXP_SCALED_ONE, 7 days);
         uint128 thirtyDayRate = continuousIndexingMath.getContinuousIndex(_EXP_SCALED_ONE, 30 days);
 
         assertEq(
-            IndexingMath.divide240By128Down(IndexingMath.multiply112By128Down(amount, sevenDayRate), sevenDayRate),
+            IndexingMath.getPrincipalAmountRoundedDown(
+                IndexingMath.getPresentAmountRoundedDown(amount, sevenDayRate),
+                sevenDayRate
+            ),
             amount - 1
         );
         assertEq(
-            IndexingMath.multiply112By128Down(IndexingMath.divide240By128Down(amount, sevenDayRate), sevenDayRate),
+            IndexingMath.getPresentAmountRoundedDown(
+                IndexingMath.getPrincipalAmountRoundedDown(amount, sevenDayRate),
+                sevenDayRate
+            ),
             amount - 1
         );
 
         assertEq(
-            IndexingMath.divide240By128Down(IndexingMath.multiply112By128Down(amount, thirtyDayRate), thirtyDayRate),
+            IndexingMath.getPrincipalAmountRoundedDown(
+                IndexingMath.getPresentAmountRoundedDown(amount, thirtyDayRate),
+                thirtyDayRate
+            ),
             amount - 1
         );
         assertEq(
-            IndexingMath.multiply112By128Down(IndexingMath.divide240By128Down(amount, thirtyDayRate), thirtyDayRate),
+            IndexingMath.getPresentAmountRoundedDown(
+                IndexingMath.getPrincipalAmountRoundedDown(amount, thirtyDayRate),
+                thirtyDayRate
+            ),
             amount - 1
         );
     }
@@ -110,20 +128,32 @@ contract ContinuousIndexingMathTests is Test {
         uint128 thirtyDayRate = continuousIndexingMath.getContinuousIndex((_EXP_SCALED_ONE * 6) / 100, 30 days);
 
         assertEq(
-            IndexingMath.divide240By128Down(IndexingMath.multiply112By128Down(amount, sevenDayRate), sevenDayRate),
+            IndexingMath.getPrincipalAmountRoundedDown(
+                IndexingMath.getPresentAmountRoundedDown(amount, sevenDayRate),
+                sevenDayRate
+            ),
             amount - 1
         );
         assertEq(
-            IndexingMath.multiply112By128Down(IndexingMath.divide240By128Down(amount, sevenDayRate), sevenDayRate),
+            IndexingMath.getPresentAmountRoundedDown(
+                IndexingMath.getPrincipalAmountRoundedDown(amount, sevenDayRate),
+                sevenDayRate
+            ),
             amount - 1
         );
 
         assertEq(
-            IndexingMath.divide240By128Down(IndexingMath.multiply112By128Down(amount, thirtyDayRate), thirtyDayRate),
+            IndexingMath.getPrincipalAmountRoundedDown(
+                IndexingMath.getPresentAmountRoundedDown(amount, thirtyDayRate),
+                thirtyDayRate
+            ),
             amount - 1
         );
         assertEq(
-            IndexingMath.multiply112By128Down(IndexingMath.divide240By128Down(amount, thirtyDayRate), thirtyDayRate),
+            IndexingMath.getPresentAmountRoundedDown(
+                IndexingMath.getPrincipalAmountRoundedDown(amount, thirtyDayRate),
+                thirtyDayRate
+            ),
             amount - 1
         );
     }
