@@ -23,22 +23,22 @@ library IndexingMath {
 
     /**
      * @dev    Returns the present amount (rounded down) given the principal amount and an index.
-     * @param  principal The principal amount.
-     * @param  index     An index.
+     * @param  principalAmount The principal amount.
+     * @param  index           An index.
      * @return The present amount rounded down.
      */
-    function getPresentAmountRoundedDown(uint112 principal, uint128 index) internal pure returns (uint256) {
-        return (uint256(principal) * index) / EXP_SCALED_ONE;
+    function getPresentAmountRoundedDown(uint112 principalAmount, uint128 index) internal pure returns (uint256) {
+        return (uint256(principalAmount) * index) / EXP_SCALED_ONE;
     }
 
     /**
      * @dev    Returns the present amount (rounded up) given the principal amount and an index.
-     * @param  principal The principal amount.
-     * @param  index     An index.
+     * @param  principalAmount The principal amount.
+     * @param  index           An index.
      * @return The present amount rounded up.
      */
-    function getPresentAmountRoundedUp(uint112 principal, uint128 index) internal pure returns (uint256) {
-        return ((uint256(principal) * index) + (EXP_SCALED_ONE - 1)) / EXP_SCALED_ONE;
+    function getPresentAmountRoundedUp(uint112 principalAmount, uint128 index) internal pure returns (uint256) {
+        return ((uint256(principalAmount) * index) + (EXP_SCALED_ONE - 1)) / EXP_SCALED_ONE;
     }
 
     /**

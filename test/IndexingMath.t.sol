@@ -311,7 +311,7 @@ contract IndexingMathTests is Test {
 
         // NOTE: Rounding up twice can inflate the principal by up to `ceil(EXP_SCALED_ONE / index)`, so reserve the
         //       full worst-case headroom for the current `index` before the round trip.
-        uint112 maxRoundTripInflation_ = uint112((_EXP_SCALED_ONE + index - 1) / index);
+        uint112 maxRoundTripInflation_ = uint112((_EXP_SCALED_ONE + uint256(index) - 1) / index);
         uint112 boundedPrincipal_ = uint112(bound(principal, 0, type(uint112).max - maxRoundTripInflation_));
 
         // Rounding the present amount up and back up can never deflate the principal.
