@@ -4,7 +4,7 @@ pragma solidity >=0.8.20 <0.9.0;
 
 import {IndexingMath} from "../../src/libs/IndexingMath.sol";
 
-// Note: This harness contract is needed cause internal library functions can be inlined by the compiler
+// Note: This harness contract is needed because internal library functions can be inlined by the compiler
 //       and won't be picked up by forge coverage
 // See: https://github.com/foundry-rs/foundry/issues/6308#issuecomment-1866878768
 contract IndexingMathHarness {
