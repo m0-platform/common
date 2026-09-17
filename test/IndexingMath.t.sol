@@ -115,6 +115,10 @@ contract IndexingMathTests is Test {
     function test_getPrincipalAmountRoundedDown_divisionByZero() external {
         vm.expectRevert(IndexingMath.DivisionByZero.selector);
         _indexingMath.getPrincipalAmountRoundedDown(1_000e6, 0);
+
+        // The zero index is rejected even when the present amount is zero.
+        vm.expectRevert(IndexingMath.DivisionByZero.selector);
+        _indexingMath.getPrincipalAmountRoundedDown(0, 0);
     }
 
     function test_getPrincipalAmountRoundedDown_invalidUInt112() external {
@@ -168,6 +172,10 @@ contract IndexingMathTests is Test {
     function test_getPrincipalAmountRoundedUp_divisionByZero() external {
         vm.expectRevert(IndexingMath.DivisionByZero.selector);
         _indexingMath.getPrincipalAmountRoundedUp(1_000e6, 0);
+
+        // The zero index is rejected even when the present amount is zero.
+        vm.expectRevert(IndexingMath.DivisionByZero.selector);
+        _indexingMath.getPrincipalAmountRoundedUp(0, 0);
     }
 
     function test_getPrincipalAmountRoundedUp_invalidUInt112() external {
