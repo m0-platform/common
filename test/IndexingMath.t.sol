@@ -2,40 +2,12 @@
 
 pragma solidity >=0.8.20 <0.9.0;
 
-import { Test, stdError } from "../lib/forge-std/src/Test.sol";
+import {Test, stdError} from "../lib/forge-std/src/Test.sol";
 
-import { IndexingMath } from "../src/libs/IndexingMath.sol";
-import { UIntMath } from "../src/libs/UIntMath.sol";
+import {IndexingMath} from "../src/libs/IndexingMath.sol";
+import {UIntMath} from "../src/libs/UIntMath.sol";
 
-/// @title  Wrapper exposing `IndexingMath`'s internal functions as external calls.
-/// @author M^0 Labs
-/// @dev    Reverts raised by an inlined internal library call cannot be captured by `vm.expectRevert`,
-///         so every assertion below goes through this wrapper.
-contract IndexingMathWrapper {
-    function getPresentAmountRoundedDown(uint112 principal, uint128 index) external pure returns (uint256) {
-        return IndexingMath.getPresentAmountRoundedDown(principal, index);
-    }
-
-    function getPresentAmountRoundedUp(uint112 principal, uint128 index) external pure returns (uint256) {
-        return IndexingMath.getPresentAmountRoundedUp(principal, index);
-    }
-
-    function getPrincipalAmountRoundedDown(uint256 presentAmount, uint128 index) external pure returns (uint112) {
-        return IndexingMath.getPrincipalAmountRoundedDown(presentAmount, index);
-    }
-
-    function getPrincipalAmountRoundedUp(uint256 presentAmount, uint128 index) external pure returns (uint112) {
-        return IndexingMath.getPrincipalAmountRoundedUp(presentAmount, index);
-    }
-
-    function getSafePrincipalAmountRoundedUp(
-        uint256 presentAmount,
-        uint128 index,
-        uint112 maxPrincipalAmount
-    ) external pure returns (uint112) {
-        return IndexingMath.getSafePrincipalAmountRoundedUp(presentAmount, index, maxPrincipalAmount);
-    }
-}
+import {IndexingMathHarness} from "./utils/IndexingMathHarness.sol";
 
 contract IndexingMathTests is Test {
     uint56 internal constant _EXP_SCALED_ONE = IndexingMath.EXP_SCALED_ONE;
@@ -47,11 +19,7 @@ contract IndexingMathTests is Test {
     ///      term of `getPrincipalAmountRoundedUp` has before it overflows.
     uint256 internal constant _ROUNDING_HEADROOM = type(uint256).max - (_MAX_SCALABLE * _EXP_SCALED_ONE);
 
-    IndexingMathWrapper public indexingMath;
-
-    function setUp() external {
-        indexingMath = new IndexingMathWrapper();
-    }
+    IndexingMathHarness internal _indexingMath = new IndexingMathHarness();
 
     /* ============ EXP_SCALED_ONE ============ */
 
@@ -62,82 +30,96 @@ contract IndexingMathTests is Test {
     /* ============ getPresentAmountRoundedDown ============ */
 
     function test_getPresentAmountRoundedDown() external view {
-        assertEq(indexingMath.getPresentAmountRoundedDown(0, _EXP_SCALED_ONE), 0);
-        assertEq(indexingMath.getPresentAmountRoundedDown(0, 0), 0);
+        // An index of `EXP_SCALED_ONE` is the identity.
+        assertEq(_indexingMath.getPresentAmountRoundedDown(0, _EXP_SCALED_ONE), 0);
+        assertEq(_indexingMath.getPresentAmountRoundedDown(1, _EXP_SCALED_ONE), 1);
+        assertEq(_indexingMath.getPresentAmountRoundedDown(1_000e6, _EXP_SCALED_ONE), 1_000e6);
 
-        // An index of one is the identity.
-        assertEq(indexingMath.getPresentAmountRoundedDown(1, _EXP_SCALED_ONE), 1);
-        assertEq(indexingMath.getPresentAmountRoundedDown(1_000, _EXP_SCALED_ONE), 1_000);
-        assertEq(indexingMath.getPresentAmountRoundedDown(type(uint112).max, _EXP_SCALED_ONE), type(uint112).max);
+        // Indexes above and below `EXP_SCALED_ONE`.
+        assertEq(_indexingMath.getPresentAmountRoundedDown(1_000e6, 2 * _EXP_SCALED_ONE), 2_000e6);
+        assertEq(_indexingMath.getPresentAmountRoundedDown(1_000e6, (11 * _EXP_SCALED_ONE) / 10), 1_100e6);
+        assertEq(_indexingMath.getPresentAmountRoundedDown(1_000e6, _EXP_SCALED_ONE / 2), 500e6);
 
-        assertEq(indexingMath.getPresentAmountRoundedDown(1, 2 * uint128(_EXP_SCALED_ONE)), 2);
-        assertEq(indexingMath.getPresentAmountRoundedDown(10, _EXP_SCALED_ONE / 2), 5);
+        // Truncation towards zero.
+        assertEq(_indexingMath.getPresentAmountRoundedDown(1, _EXP_SCALED_ONE - 1), 0);
+        assertEq(_indexingMath.getPresentAmountRoundedDown(1, _EXP_SCALED_ONE + 1), 1);
+        assertEq(_indexingMath.getPresentAmountRoundedDown(1, 1), 0);
+        assertEq(_indexingMath.getPresentAmountRoundedDown(3, _EXP_SCALED_ONE / 3), 0);
+        assertEq(_indexingMath.getPresentAmountRoundedDown(0, type(uint128).max), 0);
 
-        // Truncating cases: the exact product is not a multiple of `EXP_SCALED_ONE`.
-        assertEq(indexingMath.getPresentAmountRoundedDown(1, _EXP_SCALED_ONE - 1), 0); // Different than rounded up
-        assertEq(indexingMath.getPresentAmountRoundedDown(1, _EXP_SCALED_ONE + 1), 1); // Different than rounded up
-        assertEq(indexingMath.getPresentAmountRoundedDown(3, _EXP_SCALED_ONE + 1), 3); // Different than rounded up
-        assertEq(indexingMath.getPresentAmountRoundedDown(3, (_EXP_SCALED_ONE / 2) + 1), 1); // Different than up
+        // A zero index yields a zero present amount.
+        assertEq(_indexingMath.getPresentAmountRoundedDown(1_000e6, 0), 0);
+
+        // The maximum inputs do not overflow, since `type(uint112).max * type(uint128).max` fits in a `uint256`.
+        assertEq(
+            _indexingMath.getPresentAmountRoundedDown(type(uint112).max, type(uint128).max),
+            (uint256(type(uint112).max) * type(uint128).max) / _EXP_SCALED_ONE
+        );
     }
 
     /* ============ getPresentAmountRoundedUp ============ */
 
     function test_getPresentAmountRoundedUp() external view {
-        assertEq(indexingMath.getPresentAmountRoundedUp(0, _EXP_SCALED_ONE), 0);
-        assertEq(indexingMath.getPresentAmountRoundedUp(0, 0), 0);
+        // An index of `EXP_SCALED_ONE` is the identity.
+        assertEq(_indexingMath.getPresentAmountRoundedUp(0, _EXP_SCALED_ONE), 0);
+        assertEq(_indexingMath.getPresentAmountRoundedUp(1, _EXP_SCALED_ONE), 1);
+        assertEq(_indexingMath.getPresentAmountRoundedUp(1_000e6, _EXP_SCALED_ONE), 1_000e6);
 
-        // An index of one is the identity.
-        assertEq(indexingMath.getPresentAmountRoundedUp(1, _EXP_SCALED_ONE), 1);
-        assertEq(indexingMath.getPresentAmountRoundedUp(1_000, _EXP_SCALED_ONE), 1_000);
-        assertEq(indexingMath.getPresentAmountRoundedUp(type(uint112).max, _EXP_SCALED_ONE), type(uint112).max);
+        // Indexes above and below `EXP_SCALED_ONE`.
+        assertEq(_indexingMath.getPresentAmountRoundedUp(1_000e6, 2 * _EXP_SCALED_ONE), 2_000e6);
+        assertEq(_indexingMath.getPresentAmountRoundedUp(1_000e6, (11 * _EXP_SCALED_ONE) / 10), 1_100e6);
+        assertEq(_indexingMath.getPresentAmountRoundedUp(1_000e6, _EXP_SCALED_ONE / 2), 500e6);
 
-        assertEq(indexingMath.getPresentAmountRoundedUp(1, 2 * uint128(_EXP_SCALED_ONE)), 2);
-        assertEq(indexingMath.getPresentAmountRoundedUp(10, _EXP_SCALED_ONE / 2), 5);
+        // Truncation away from zero. Different than `getPresentAmountRoundedDown`.
+        assertEq(_indexingMath.getPresentAmountRoundedUp(1, _EXP_SCALED_ONE - 1), 1);
+        assertEq(_indexingMath.getPresentAmountRoundedUp(1, _EXP_SCALED_ONE + 1), 2);
+        assertEq(_indexingMath.getPresentAmountRoundedUp(1, 1), 1);
+        assertEq(_indexingMath.getPresentAmountRoundedUp(3, _EXP_SCALED_ONE / 3), 1);
 
-        // Ceiling cases: exactly one unit above the rounded down result.
-        assertEq(indexingMath.getPresentAmountRoundedUp(1, _EXP_SCALED_ONE - 1), 1); // Different than rounded down
-        assertEq(indexingMath.getPresentAmountRoundedUp(1, _EXP_SCALED_ONE + 1), 2); // Different than rounded down
-        assertEq(indexingMath.getPresentAmountRoundedUp(3, _EXP_SCALED_ONE + 1), 4); // Different than rounded down
-        assertEq(indexingMath.getPresentAmountRoundedUp(3, (_EXP_SCALED_ONE / 2) + 1), 2); // Different than down
+        // A zero principal is never rounded up to a non-zero present amount.
+        assertEq(_indexingMath.getPresentAmountRoundedUp(0, type(uint128).max), 0);
+
+        // A zero index yields a zero present amount.
+        assertEq(_indexingMath.getPresentAmountRoundedUp(1_000e6, 0), 0);
+
+        // The maximum inputs do not overflow.
+        assertEq(
+            _indexingMath.getPresentAmountRoundedUp(type(uint112).max, type(uint128).max),
+            ((uint256(type(uint112).max) * type(uint128).max) + (_EXP_SCALED_ONE - 1)) / _EXP_SCALED_ONE
+        );
     }
 
     /* ============ getPrincipalAmountRoundedDown ============ */
 
     function test_getPrincipalAmountRoundedDown() external view {
-        assertEq(indexingMath.getPrincipalAmountRoundedDown(0, _EXP_SCALED_ONE), 0);
-        assertEq(indexingMath.getPrincipalAmountRoundedDown(0, type(uint128).max), 0);
+        // An index of `EXP_SCALED_ONE` is the identity.
+        assertEq(_indexingMath.getPrincipalAmountRoundedDown(0, _EXP_SCALED_ONE), 0);
+        assertEq(_indexingMath.getPrincipalAmountRoundedDown(1, _EXP_SCALED_ONE), 1);
+        assertEq(_indexingMath.getPrincipalAmountRoundedDown(1_000e6, _EXP_SCALED_ONE), 1_000e6);
 
-        // An index of one is the identity.
-        assertEq(indexingMath.getPrincipalAmountRoundedDown(1, _EXP_SCALED_ONE), 1);
-        assertEq(indexingMath.getPrincipalAmountRoundedDown(1_000, _EXP_SCALED_ONE), 1_000);
-        assertEq(indexingMath.getPrincipalAmountRoundedDown(type(uint112).max, _EXP_SCALED_ONE), type(uint112).max);
+        // Indexes above and below `EXP_SCALED_ONE`.
+        assertEq(_indexingMath.getPrincipalAmountRoundedDown(2_000e6, 2 * _EXP_SCALED_ONE), 1_000e6);
+        assertEq(_indexingMath.getPrincipalAmountRoundedDown(1_000e6, (11 * _EXP_SCALED_ONE) / 10), 909_090909);
+        assertEq(_indexingMath.getPrincipalAmountRoundedDown(500e6, _EXP_SCALED_ONE / 2), 1_000e6);
 
-        assertEq(indexingMath.getPrincipalAmountRoundedDown(2, 2 * uint128(_EXP_SCALED_ONE)), 1);
-        assertEq(indexingMath.getPrincipalAmountRoundedDown(5, _EXP_SCALED_ONE / 2), 10);
+        // Truncation towards zero.
+        assertEq(_indexingMath.getPrincipalAmountRoundedDown(1, _EXP_SCALED_ONE + 1), 0);
+        assertEq(_indexingMath.getPrincipalAmountRoundedDown(1, 2 * _EXP_SCALED_ONE), 0);
+        assertEq(_indexingMath.getPrincipalAmountRoundedDown(1, 3 * _EXP_SCALED_ONE), 0);
+        assertEq(_indexingMath.getPrincipalAmountRoundedDown(10, 3 * _EXP_SCALED_ONE), 3);
 
-        // Truncating cases: the exact quotient is not an integer.
-        assertEq(indexingMath.getPrincipalAmountRoundedDown(1, _EXP_SCALED_ONE + 1), 0); // Different than rounded up
-        assertEq(indexingMath.getPrincipalAmountRoundedDown(1, _EXP_SCALED_ONE - 1), 1); // Different than rounded up
-        assertEq(indexingMath.getPrincipalAmountRoundedDown(3, 2 * uint128(_EXP_SCALED_ONE)), 1); // Different than up
+        // The largest representable principal.
+        assertEq(_indexingMath.getPrincipalAmountRoundedDown(type(uint112).max, _EXP_SCALED_ONE), type(uint112).max);
     }
 
     function test_getPrincipalAmountRoundedDown_divisionByZero() external {
         vm.expectRevert(IndexingMath.DivisionByZero.selector);
-        indexingMath.getPrincipalAmountRoundedDown(1, 0);
-
-        // The zero index is rejected even when the present amount is zero.
-        vm.expectRevert(IndexingMath.DivisionByZero.selector);
-        indexingMath.getPrincipalAmountRoundedDown(0, 0);
+        _indexingMath.getPrincipalAmountRoundedDown(1_000e6, 0);
     }
 
-    /// @dev The result is cast through `UIntMath.safe112`, which reverts rather than truncating.
     function test_getPrincipalAmountRoundedDown_invalidUInt112() external {
-        uint256 justOverUInt112 = uint256(type(uint112).max) + 1;
-
-        assertEq(indexingMath.getPrincipalAmountRoundedDown(justOverUInt112 - 1, _EXP_SCALED_ONE), type(uint112).max);
-
         vm.expectRevert(UIntMath.InvalidUInt112.selector);
-        indexingMath.getPrincipalAmountRoundedDown(justOverUInt112, _EXP_SCALED_ONE);
+        _indexingMath.getPrincipalAmountRoundedDown(uint256(type(uint112).max) + 1, _EXP_SCALED_ONE);
     }
 
     /// @dev The present amount is widened to uint256, so `presentAmount * EXP_SCALED_ONE` is bounded by the scaling
@@ -145,52 +127,52 @@ contract IndexingMathTests is Test {
     function test_getPrincipalAmountRoundedDown_scalingLimit() external {
         // At the limit the multiplication is fine and only the uint112 cap rejects the result.
         vm.expectRevert(UIntMath.InvalidUInt112.selector);
-        indexingMath.getPrincipalAmountRoundedDown(_MAX_SCALABLE, _EXP_SCALED_ONE);
+        _indexingMath.getPrincipalAmountRoundedDown(_MAX_SCALABLE, _EXP_SCALED_ONE);
 
         vm.expectRevert(stdError.arithmeticError);
-        indexingMath.getPrincipalAmountRoundedDown(_MAX_SCALABLE + 1, _EXP_SCALED_ONE);
+        _indexingMath.getPrincipalAmountRoundedDown(_MAX_SCALABLE + 1, _EXP_SCALED_ONE);
+    }
 
+    function test_getPrincipalAmountRoundedDown_overflow() external {
+        // `presentAmount * EXP_SCALED_ONE` overflows before the division can take place.
         vm.expectRevert(stdError.arithmeticError);
-        indexingMath.getPrincipalAmountRoundedDown(type(uint256).max, type(uint128).max);
+        _indexingMath.getPrincipalAmountRoundedDown(type(uint256).max, type(uint128).max);
     }
 
     /* ============ getPrincipalAmountRoundedUp ============ */
 
     function test_getPrincipalAmountRoundedUp() external view {
-        assertEq(indexingMath.getPrincipalAmountRoundedUp(0, _EXP_SCALED_ONE), 0);
-        assertEq(indexingMath.getPrincipalAmountRoundedUp(0, type(uint128).max), 0);
+        // An index of `EXP_SCALED_ONE` is the identity.
+        assertEq(_indexingMath.getPrincipalAmountRoundedUp(0, _EXP_SCALED_ONE), 0);
+        assertEq(_indexingMath.getPrincipalAmountRoundedUp(1, _EXP_SCALED_ONE), 1);
+        assertEq(_indexingMath.getPrincipalAmountRoundedUp(1_000e6, _EXP_SCALED_ONE), 1_000e6);
 
-        // An index of one is the identity.
-        assertEq(indexingMath.getPrincipalAmountRoundedUp(1, _EXP_SCALED_ONE), 1);
-        assertEq(indexingMath.getPrincipalAmountRoundedUp(1_000, _EXP_SCALED_ONE), 1_000);
-        assertEq(indexingMath.getPrincipalAmountRoundedUp(type(uint112).max, _EXP_SCALED_ONE), type(uint112).max);
+        // Indexes above and below `EXP_SCALED_ONE`.
+        assertEq(_indexingMath.getPrincipalAmountRoundedUp(2_000e6, 2 * _EXP_SCALED_ONE), 1_000e6);
+        assertEq(_indexingMath.getPrincipalAmountRoundedUp(1_000e6, (11 * _EXP_SCALED_ONE) / 10), 909_090910);
+        assertEq(_indexingMath.getPrincipalAmountRoundedUp(500e6, _EXP_SCALED_ONE / 2), 1_000e6);
 
-        assertEq(indexingMath.getPrincipalAmountRoundedUp(2, 2 * uint128(_EXP_SCALED_ONE)), 1);
-        assertEq(indexingMath.getPrincipalAmountRoundedUp(5, _EXP_SCALED_ONE / 2), 10);
+        // Truncation away from zero. Different than `getPrincipalAmountRoundedDown`.
+        assertEq(_indexingMath.getPrincipalAmountRoundedUp(1, _EXP_SCALED_ONE + 1), 1);
+        assertEq(_indexingMath.getPrincipalAmountRoundedUp(1, 2 * _EXP_SCALED_ONE), 1);
+        assertEq(_indexingMath.getPrincipalAmountRoundedUp(1, 3 * _EXP_SCALED_ONE), 1);
+        assertEq(_indexingMath.getPrincipalAmountRoundedUp(10, 3 * _EXP_SCALED_ONE), 4);
 
-        // Ceiling cases: exactly one unit above the rounded down result.
-        assertEq(indexingMath.getPrincipalAmountRoundedUp(1, _EXP_SCALED_ONE + 1), 1); // Different than rounded down
-        assertEq(indexingMath.getPrincipalAmountRoundedUp(1, _EXP_SCALED_ONE - 1), 2); // Different than rounded down
-        assertEq(indexingMath.getPrincipalAmountRoundedUp(3, 2 * uint128(_EXP_SCALED_ONE)), 2); // Different than down
+        // A zero present amount is never rounded up to a non-zero principal.
+        assertEq(_indexingMath.getPrincipalAmountRoundedUp(0, type(uint128).max), 0);
+
+        // The largest representable principal.
+        assertEq(_indexingMath.getPrincipalAmountRoundedUp(type(uint112).max, _EXP_SCALED_ONE), type(uint112).max);
     }
 
     function test_getPrincipalAmountRoundedUp_divisionByZero() external {
         vm.expectRevert(IndexingMath.DivisionByZero.selector);
-        indexingMath.getPrincipalAmountRoundedUp(1, 0);
-
-        // The zero index is rejected even when the present amount is zero.
-        vm.expectRevert(IndexingMath.DivisionByZero.selector);
-        indexingMath.getPrincipalAmountRoundedUp(0, 0);
+        _indexingMath.getPrincipalAmountRoundedUp(1_000e6, 0);
     }
 
-    /// @dev The result is cast through `UIntMath.safe112`, which reverts rather than truncating.
     function test_getPrincipalAmountRoundedUp_invalidUInt112() external {
-        uint256 justOverUInt112 = uint256(type(uint112).max) + 1;
-
-        assertEq(indexingMath.getPrincipalAmountRoundedUp(justOverUInt112 - 1, _EXP_SCALED_ONE), type(uint112).max);
-
         vm.expectRevert(UIntMath.InvalidUInt112.selector);
-        indexingMath.getPrincipalAmountRoundedUp(justOverUInt112, _EXP_SCALED_ONE);
+        _indexingMath.getPrincipalAmountRoundedUp(uint256(type(uint112).max) + 1, _EXP_SCALED_ONE);
     }
 
     /// @dev Same scaling limit as the rounded down variant, except that the `+ index - 1` ceiling term consumes the
@@ -198,123 +180,161 @@ contract IndexingMathTests is Test {
     function test_getPrincipalAmountRoundedUp_scalingLimit() external {
         // At the limit, with an index small enough for the ceiling term to fit, only the uint112 cap rejects.
         vm.expectRevert(UIntMath.InvalidUInt112.selector);
-        indexingMath.getPrincipalAmountRoundedUp(_MAX_SCALABLE, uint128(_ROUNDING_HEADROOM));
+        _indexingMath.getPrincipalAmountRoundedUp(_MAX_SCALABLE, uint128(_ROUNDING_HEADROOM));
 
         // One unit of index further, the ceiling term itself overflows: `+ index` is applied before `- 1`.
         vm.expectRevert(stdError.arithmeticError);
-        indexingMath.getPrincipalAmountRoundedUp(_MAX_SCALABLE, uint128(_ROUNDING_HEADROOM + 1));
+        _indexingMath.getPrincipalAmountRoundedUp(_MAX_SCALABLE, uint128(_ROUNDING_HEADROOM + 1));
 
         vm.expectRevert(stdError.arithmeticError);
-        indexingMath.getPrincipalAmountRoundedUp(_MAX_SCALABLE, type(uint128).max);
+        _indexingMath.getPrincipalAmountRoundedUp(_MAX_SCALABLE, type(uint128).max);
 
         vm.expectRevert(stdError.arithmeticError);
-        indexingMath.getPrincipalAmountRoundedUp(_MAX_SCALABLE + 1, _EXP_SCALED_ONE);
+        _indexingMath.getPrincipalAmountRoundedUp(_MAX_SCALABLE + 1, _EXP_SCALED_ONE);
+    }
+
+    function test_getPrincipalAmountRoundedUp_overflow() external {
+        // `presentAmount * EXP_SCALED_ONE` overflows before the division can take place.
+        vm.expectRevert(stdError.arithmeticError);
+        _indexingMath.getPrincipalAmountRoundedUp(type(uint256).max, type(uint128).max);
     }
 
     /* ============ getSafePrincipalAmountRoundedUp ============ */
 
     function test_getSafePrincipalAmountRoundedUp() external view {
-        assertEq(indexingMath.getSafePrincipalAmountRoundedUp(0, _EXP_SCALED_ONE, type(uint112).max), 0);
+        // Below the cap, the result matches `getPrincipalAmountRoundedUp`.
+        assertEq(_indexingMath.getSafePrincipalAmountRoundedUp(0, _EXP_SCALED_ONE, 1_000e6), 0);
+        assertEq(_indexingMath.getSafePrincipalAmountRoundedUp(1, _EXP_SCALED_ONE, 1_000e6), 1);
+        assertEq(_indexingMath.getSafePrincipalAmountRoundedUp(10, 3 * _EXP_SCALED_ONE, 1_000e6), 4);
 
-        // Below the cap, it is `getPrincipalAmountRoundedUp`, ceiling included.
-        assertEq(indexingMath.getSafePrincipalAmountRoundedUp(1_000, _EXP_SCALED_ONE, 5_000), 1_000);
-        assertEq(indexingMath.getSafePrincipalAmountRoundedUp(1, _EXP_SCALED_ONE - 1, 5_000), 2);
+        // Exactly at the cap.
+        assertEq(_indexingMath.getSafePrincipalAmountRoundedUp(1_000e6, _EXP_SCALED_ONE, 1_000e6), 1_000e6);
 
-        // At the cap it is the cap.
-        assertEq(indexingMath.getSafePrincipalAmountRoundedUp(1_000, _EXP_SCALED_ONE, 1_000), 1_000);
+        // Above the cap.
+        assertEq(_indexingMath.getSafePrincipalAmountRoundedUp(1_000e6, _EXP_SCALED_ONE, 999e6), 999e6);
+        assertEq(_indexingMath.getSafePrincipalAmountRoundedUp(1_000e6, _EXP_SCALED_ONE, 0), 0);
 
-        // Above the cap it is the cap.
-        assertEq(indexingMath.getSafePrincipalAmountRoundedUp(1_000, _EXP_SCALED_ONE, 500), 500);
-        assertEq(indexingMath.getSafePrincipalAmountRoundedUp(1_000, _EXP_SCALED_ONE, 0), 0);
+        // The cap applies to the rounded up amount, not the rounded down one.
+        assertEq(_indexingMath.getSafePrincipalAmountRoundedUp(10, 3 * _EXP_SCALED_ONE, 3), 3);
     }
 
     /// @dev The cap only applies within the uint112 window, up to and including `type(uint112).max` itself.
     function test_getSafePrincipalAmountRoundedUp_capsUpToMaxUInt112() external view {
-        uint256 presentAmount = uint256(type(uint112).max);
+        uint256 presentAmount_ = uint256(type(uint112).max);
 
         assertEq(
-            indexingMath.getSafePrincipalAmountRoundedUp(presentAmount, _EXP_SCALED_ONE, type(uint112).max),
+            _indexingMath.getSafePrincipalAmountRoundedUp(presentAmount_, _EXP_SCALED_ONE, type(uint112).max),
             type(uint112).max
         );
 
-        assertEq(indexingMath.getSafePrincipalAmountRoundedUp(presentAmount, _EXP_SCALED_ONE, 1), 1);
-    }
-
-    /// @dev Despite its name, this function does not absorb an out of uint112 principal amount: the cap is applied
-    ///      after `UIntMath.safe112`, so an uncapped principal amount above `type(uint112).max` still reverts.
-    function test_getSafePrincipalAmountRoundedUp_revertsAboveMaxUInt112DespiteCap() external {
-        uint256 presentAmount = uint256(type(uint112).max) + 1;
-
-        vm.expectRevert(UIntMath.InvalidUInt112.selector);
-        indexingMath.getSafePrincipalAmountRoundedUp(presentAmount, _EXP_SCALED_ONE, 1);
-
-        vm.expectRevert(UIntMath.InvalidUInt112.selector);
-        indexingMath.getSafePrincipalAmountRoundedUp(presentAmount, _EXP_SCALED_ONE, type(uint112).max);
+        assertEq(_indexingMath.getSafePrincipalAmountRoundedUp(presentAmount_, _EXP_SCALED_ONE, 1), 1);
     }
 
     function test_getSafePrincipalAmountRoundedUp_divisionByZero() external {
         vm.expectRevert(IndexingMath.DivisionByZero.selector);
-        indexingMath.getSafePrincipalAmountRoundedUp(1, 0, type(uint112).max);
+        _indexingMath.getSafePrincipalAmountRoundedUp(1_000e6, 0, 1_000e6);
+    }
+
+    function test_getSafePrincipalAmountRoundedUp_invalidUInt112() external {
+        // NOTE: The cap is applied after the `uint112` cast, so a present amount whose principal does not fit in a
+        //       `uint112` reverts rather than being capped at `maxPrincipalAmount`.
+        vm.expectRevert(UIntMath.InvalidUInt112.selector);
+        _indexingMath.getSafePrincipalAmountRoundedUp(uint256(type(uint112).max) + 1, _EXP_SCALED_ONE, 1_000e6);
     }
 
     function test_getSafePrincipalAmountRoundedUp_scalingLimit() external {
         vm.expectRevert(stdError.arithmeticError);
-        indexingMath.getSafePrincipalAmountRoundedUp(_MAX_SCALABLE + 1, _EXP_SCALED_ONE, type(uint112).max);
+        _indexingMath.getSafePrincipalAmountRoundedUp(_MAX_SCALABLE + 1, _EXP_SCALED_ONE, type(uint112).max);
     }
 
-    /* ============ Fuzz ============ */
+    /* ============ Fuzz Tests ============ */
 
-    /// @dev Neither present amount function can revert for any input of its declared widths.
-    function testFuzz_getPresentAmount_neverReverts(uint112 principal, uint128 index) external view {
-        indexingMath.getPresentAmountRoundedDown(principal, index);
-        indexingMath.getPresentAmountRoundedUp(principal, index);
+    function testFuzz_presentAmountRounding(uint112 principal, uint128 index) external view {
+        uint256 roundedDown_ = _indexingMath.getPresentAmountRoundedDown(principal, index);
+        uint256 roundedUp_ = _indexingMath.getPresentAmountRoundedUp(principal, index);
+
+        assertGe(roundedUp_, roundedDown_);
+        assertLe(roundedUp_ - roundedDown_, 1);
+
+        // They only differ when the division is inexact.
+        assertEq(roundedUp_ == roundedDown_, (uint256(principal) * index) % _EXP_SCALED_ONE == 0);
     }
 
     /// @dev An index of `EXP_SCALED_ONE` leaves the principal amount untouched in both directions.
     function testFuzz_getPresentAmount_identityAtScaledOne(uint112 principal) external view {
-        assertEq(indexingMath.getPresentAmountRoundedDown(principal, _EXP_SCALED_ONE), principal);
-        assertEq(indexingMath.getPresentAmountRoundedUp(principal, _EXP_SCALED_ONE), principal);
+        assertEq(_indexingMath.getPresentAmountRoundedDown(principal, _EXP_SCALED_ONE), principal);
+        assertEq(_indexingMath.getPresentAmountRoundedUp(principal, _EXP_SCALED_ONE), principal);
+    }
+
+    function testFuzz_principalAmountRounding(uint112 principal, uint128 index) external view {
+        index = uint128(bound(index, 1, type(uint128).max));
+
+        // NOTE: Deriving the present amount from a principal amount keeps the inverse within `uint112` bounds.
+        uint256 presentAmount_ = _indexingMath.getPresentAmountRoundedDown(principal, index);
+
+        uint112 roundedDown_ = _indexingMath.getPrincipalAmountRoundedDown(presentAmount_, index);
+        uint112 roundedUp_ = _indexingMath.getPrincipalAmountRoundedUp(presentAmount_, index);
+
+        assertGe(roundedUp_, roundedDown_);
+        assertLe(roundedUp_ - roundedDown_, 1);
+
+        // They only differ when the division is inexact.
+        assertEq(roundedUp_ == roundedDown_, (presentAmount_ * _EXP_SCALED_ONE) % index == 0);
     }
 
     function testFuzz_getPrincipalAmount_identityAtScaledOne(uint112 principal) external view {
-        assertEq(indexingMath.getPrincipalAmountRoundedDown(principal, _EXP_SCALED_ONE), principal);
-        assertEq(indexingMath.getPrincipalAmountRoundedUp(principal, _EXP_SCALED_ONE), principal);
+        assertEq(_indexingMath.getPrincipalAmountRoundedDown(principal, _EXP_SCALED_ONE), principal);
+        assertEq(_indexingMath.getPrincipalAmountRoundedUp(principal, _EXP_SCALED_ONE), principal);
     }
 
-    /// @dev Rounding up is never below rounding down, and never more than one unit above it.
-    function testFuzz_getPresentAmount_roundedUpIsAtMostOneAboveRoundedDown(
-        uint112 principal,
-        uint128 index
-    ) external view {
-        uint256 roundedDown = indexingMath.getPresentAmountRoundedDown(principal, index);
-        uint256 roundedUp = indexingMath.getPresentAmountRoundedUp(principal, index);
+    function testFuzz_roundTrip(uint112 principal, uint128 index) external view {
+        index = uint128(bound(index, 1, type(uint128).max));
 
-        assertGe(roundedUp, roundedDown);
-        assertLe(roundedUp - roundedDown, 1);
+        // Rounding the present amount down and back down can never inflate the principal.
+        assertLe(
+            _indexingMath.getPrincipalAmountRoundedDown(
+                _indexingMath.getPresentAmountRoundedDown(principal, index), index
+            ),
+            principal
+        );
+
+        // NOTE: Rounding up twice can inflate the principal by up to `EXP_SCALED_ONE / index`, so the principal needs
+        //       enough headroom below `type(uint112).max` for the result to remain castable to a `uint112`.
+        uint112 boundedPrincipal_ = uint112(bound(principal, 0, type(uint112).max - _EXP_SCALED_ONE - 1));
+
+        // Rounding the present amount up and back up can never deflate the principal.
+        assertGe(
+            _indexingMath.getPrincipalAmountRoundedUp(
+                _indexingMath.getPresentAmountRoundedUp(boundedPrincipal_, index), index
+            ),
+            boundedPrincipal_
+        );
     }
 
-    function testFuzz_getPrincipalAmount_roundedUpIsAtMostOneAboveRoundedDown(
-        uint256 presentAmount,
-        uint128 index
-    ) external view {
-        index = uint128(bound(index, _EXP_SCALED_ONE, type(uint128).max));
-        presentAmount = bound(presentAmount, 0, uint256(type(uint112).max) / _EXP_SCALED_ONE);
+    function testFuzz_getSafePrincipalAmountRoundedUp(uint112 principal, uint128 index, uint112 maxPrincipalAmount)
+        external
+        view
+    {
+        index = uint128(bound(index, 1, type(uint128).max));
 
-        uint112 roundedDown = indexingMath.getPrincipalAmountRoundedDown(presentAmount, index);
-        uint112 roundedUp = indexingMath.getPrincipalAmountRoundedUp(presentAmount, index);
+        // NOTE: Deriving the present amount from a principal amount keeps the inverse within `uint112` bounds.
+        uint256 presentAmount_ = _indexingMath.getPresentAmountRoundedDown(principal, index);
 
-        assertGe(roundedUp, roundedDown);
-        assertLe(roundedUp - roundedDown, 1);
+        uint112 uncapped_ = _indexingMath.getPrincipalAmountRoundedUp(presentAmount_, index);
+        uint112 capped_ = _indexingMath.getSafePrincipalAmountRoundedUp(presentAmount_, index, maxPrincipalAmount);
+
+        assertEq(capped_, uncapped_ > maxPrincipalAmount ? maxPrincipalAmount : uncapped_);
+        assertLe(capped_, maxPrincipalAmount);
     }
 
     /// @dev The largest reachable present amount is `(2^112 - 1) * (2^128 - 1) / 1e12`, roughly 1.77e60, which is
     ///      twelve orders of magnitude below `type(uint240).max`. The uint256 return type is therefore never needed.
     function test_getPresentAmount_alwaysFitsUInt240() external view {
-        assertLt(indexingMath.getPresentAmountRoundedUp(type(uint112).max, type(uint128).max), type(uint240).max);
+        assertLt(_indexingMath.getPresentAmountRoundedUp(type(uint112).max, type(uint128).max), type(uint240).max);
     }
 
     function testFuzz_getPresentAmount_alwaysFitsUInt240(uint112 principal, uint128 index) external view {
-        assertLe(indexingMath.getPresentAmountRoundedDown(principal, index), type(uint240).max);
-        assertLe(indexingMath.getPresentAmountRoundedUp(principal, index), type(uint240).max);
+        assertLe(_indexingMath.getPresentAmountRoundedDown(principal, index), type(uint240).max);
+        assertLe(_indexingMath.getPresentAmountRoundedUp(principal, index), type(uint240).max);
     }
 }
