@@ -8,7 +8,7 @@
 	branch = release-v5.3
 [submodule "lib/safe-utils"]
 	path = lib/safe-utils
-	url = https://github.com/Recon-Fuzz/safe-utils
+	url = https://github.com/m0-platform/safe-utils
 [submodule "lib/openzeppelin-contracts"]
 	path = lib/openzeppelin-contracts
 	url = https://github.com/Openzeppelin/openzeppelin-contracts
