@@ -28,7 +28,10 @@ library SafeNonce {
         client_.initialize(safe_);
         uint256 onChain_ = client_.getNonce();
 
-        HTTP.Response memory response_ = client_.instance().http.instance()
+        HTTP.Response memory response_ = client_
+            .instance()
+            .http
+            .instance()
             .GET(
                 string.concat(
                     client_.getApiKitUrl(block.chainid),
@@ -38,7 +41,8 @@ library SafeNonce {
                     _vm.toString(onChain_),
                     "&ordering=-nonce&limit=1"
                 )
-            ).request();
+            )
+            .request();
 
         if (response_.status < 200 || response_.status >= 300) {
             revert PendingProposalsQueryFailed(response_.status, response_.data);

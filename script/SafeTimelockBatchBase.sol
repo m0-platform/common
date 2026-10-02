@@ -6,9 +6,7 @@ import { TimelockBatchBase } from "./TimelockBatchBase.sol";
 
 import { Enum } from "../lib/safe-utils/lib/safe-smart-account/contracts/common/Enum.sol";
 import { Safe } from "../lib/safe-utils/src/Safe.sol";
-import {
-    TimelockController
-} from "../lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/contracts/governance/TimelockController.sol";
+import { TimelockController } from "../lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/contracts/governance/TimelockController.sol";
 
 abstract contract SafeTimelockBatchBase is TimelockBatchBase {
     using Safe for *;
