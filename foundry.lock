@@ -18,9 +18,9 @@
     }
   },
   "lib/safe-utils": {
-    "tag": {
-      "name": "v0.0.22",
-      "rev": "273945a35ade03a78648a350140aace72707d5a7"
+    "branch": {
+      "name": "main",
+      "rev": "a2cc7c22bfce024cd3c7f856305c9e0fc48135f5"
     }
   }
 }

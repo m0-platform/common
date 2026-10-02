@@ -2,6 +2,8 @@
 
 pragma solidity >=0.8.20 <0.9.0;
 
+import { SafeNonce } from "./SafeNonce.sol";
+
 import { Enum } from "../lib/safe-utils/lib/safe-smart-account/contracts/common/Enum.sol";
 import { OwnerManager } from "../lib/safe-utils/lib/safe-smart-account/contracts/base/OwnerManager.sol";
 import { Safe } from "../lib/safe-utils/src/Safe.sol";
@@ -21,15 +23,16 @@ abstract contract MultiSigBatchBase is Script {
         _data.push(data_);
     }
 
-    /// @dev Proposes the batch at the Safe's current on-chain nonce.
+    /// @dev Proposes the batch at the next free Safe nonce. See {SafeNonce-next}.
     function _proposeBatch(address safe_, address sender_) internal {
-        _safeMultiSig.initialize(safe_);
-        _propose(sender_, _safeMultiSig.getNonce());
+        _propose(sender_, SafeNonce.next(_safeMultiSig, safe_));
     }
 
     /// @dev Proposes the batch at an explicit nonce. The Safe's on-chain nonce only advances on execution, so
     ///      proposing at it can collide with already queued proposals instead of queueing behind them.
     function _proposeBatch(address safe_, address sender_, uint256 nonce_) internal {
+        console.log("Safe nonce:", nonce_);
+
         _safeMultiSig.initialize(safe_);
         _propose(sender_, nonce_);
     }
@@ -50,8 +53,6 @@ abstract contract MultiSigBatchBase is Script {
     }
 
     function _propose(address sender_, uint256 nonce_) private {
-        console.log("Safe nonce:", nonce_);
-
         (address to_, bytes memory data_) = _safeMultiSig.getProposeTransactionsTargetAndData(_targets, _data);
 
         // NOTE: Batches are executed via DelegateCall to preserve `msg.sender` across the sub-calls, and the signed
