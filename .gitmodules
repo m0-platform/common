@@ -9,6 +9,7 @@
 [submodule "lib/safe-utils"]
 	path = lib/safe-utils
 	url = https://github.com/m0-platform/safe-utils
+	branch = main
 [submodule "lib/openzeppelin-contracts"]
 	path = lib/openzeppelin-contracts
 	url = https://github.com/Openzeppelin/openzeppelin-contracts

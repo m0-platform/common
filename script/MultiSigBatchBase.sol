@@ -2,11 +2,11 @@
 
 pragma solidity >=0.8.20 <0.9.0;
 
+import { SafeNonce } from "./SafeNonce.sol";
+
 import { Enum } from "../lib/safe-utils/lib/safe-smart-account/contracts/common/Enum.sol";
 import { OwnerManager } from "../lib/safe-utils/lib/safe-smart-account/contracts/base/OwnerManager.sol";
 import { Safe } from "../lib/safe-utils/src/Safe.sol";
-
-import { SafeNonce } from "./SafeNonce.sol";
 
 import { console } from "../lib/forge-std/src/console.sol";
 import { Script } from "../lib/forge-std/src/Script.sol";

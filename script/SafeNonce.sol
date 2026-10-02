@@ -18,9 +18,12 @@ library SafeNonce {
     Vm private constant _vm = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
 
     /// @notice Thrown if the Safe transaction service does not answer the pending proposals query.
-    error PendingProposalsQueryFailed(uint256 statusCode, string response);
+    /// @param statusCode_ The HTTP status code of the response.
+    /// @param response_ The body of the response.
+    error PendingProposalsQueryFailed(uint256 statusCode_, string response_);
 
     /// @notice Returns the next free nonce of `safe_`: the on-chain nonce, or one above the highest pending proposal.
+    /// @dev    Initializes `client_` for `safe_`. Reverts if the Safe transaction service does not answer.
     function next(Safe.Client storage client_, address safe_) internal returns (uint256 nonce_) {
         client_.initialize(safe_);
         uint256 onChain_ = client_.getNonce();
@@ -41,16 +44,22 @@ library SafeNonce {
             revert PendingProposalsQueryFailed(response_.status, response_.data);
         }
 
-        uint256 pending_ = _vm.parseJsonUint(response_.data, ".count");
-        uint256 highest_ = pending_ == 0 ? 0 : _vm.parseJsonUint(response_.data, ".results[0].nonce");
+        uint256 pendingCount_ = _vm.parseJsonUint(response_.data, ".count");
+        uint256 highestPending_;
 
-        if (pending_ == 0) {
+        if (pendingCount_ == 0) {
             console.log("[nonce] Safe nonce %d, no pending proposals", onChain_);
         } else {
-            console.log("[nonce] Safe nonce %d, %d pending proposal(s) up to nonce %d", onChain_, pending_, highest_);
+            highestPending_ = _vm.parseJsonUint(response_.data, ".results[0].nonce");
+            console.log(
+                "[nonce] Safe nonce %d, %d pending proposal(s) up to nonce %d",
+                onChain_,
+                pendingCount_,
+                highestPending_
+            );
         }
 
-        nonce_ = nextFrom(onChain_, pending_, highest_);
+        nonce_ = nextFrom(onChain_, pendingCount_, highestPending_);
 
         console.log("[nonce] proposing at nonce", nonce_);
     }
