@@ -33,7 +33,7 @@ abstract contract SafeTimelockBatchBase is TimelockBatchBase {
         uint256 delay = TimelockController(payable(timelock_)).getMinDelay();
         bytes memory batchData = _getScheduleBatchCallData(predecessor_, salt_, delay);
 
-        _propose(safe_, timelock_, batchData, sender_);
+        _proposeToTimelock(safe_, timelock_, batchData, sender_);
     }
 
     /// @notice Proposes to cancel the execution of a pending message that was originally scheduled through a timelock.
@@ -47,14 +47,14 @@ abstract contract SafeTimelockBatchBase is TimelockBatchBase {
             revert OperationNotPending(id_);
         }
 
-        _propose(safe_, timelock_, abi.encodeCall(TimelockController.cancel, id_), sender_);
+        _proposeToTimelock(safe_, timelock_, abi.encodeCall(TimelockController.cancel, id_), sender_);
     }
 
-    /// @dev Proposes a call at the next free Safe nonce. See {SafeNonce-next}.
-    function _propose(address safe_, address to_, bytes memory data_, address sender_) private {
+    /// @dev Proposes a call to the timelock at the next free Safe nonce. See {SafeNonce-next}.
+    function _proposeToTimelock(address safe_, address timelock_, bytes memory data_, address sender_) private {
         uint256 nonce_ = SafeNonce.next(_safeMultiSig, safe_);
-        bytes memory signature_ = _safeMultiSig.sign(to_, data_, Enum.Operation.Call, sender_, nonce_, "");
+        bytes memory signature_ = _safeMultiSig.sign(timelock_, data_, Enum.Operation.Call, sender_, nonce_, "");
 
-        _safeMultiSig.proposeTransactionWithSignature(to_, data_, sender_, signature_, nonce_);
+        _safeMultiSig.proposeTransactionWithSignature(timelock_, data_, sender_, signature_, nonce_);
     }
 }
