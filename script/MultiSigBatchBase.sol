@@ -6,6 +6,8 @@ import { Enum } from "../lib/safe-utils/lib/safe-smart-account/contracts/common/
 import { OwnerManager } from "../lib/safe-utils/lib/safe-smart-account/contracts/base/OwnerManager.sol";
 import { Safe } from "../lib/safe-utils/src/Safe.sol";
 
+import { SafeNonce } from "./SafeNonce.sol";
+
 import { console } from "../lib/forge-std/src/console.sol";
 import { Script } from "../lib/forge-std/src/Script.sol";
 
@@ -21,10 +23,9 @@ abstract contract MultiSigBatchBase is Script {
         _data.push(data_);
     }
 
-    /// @dev Proposes the batch at the Safe's current on-chain nonce.
+    /// @dev Proposes the batch at the next free Safe nonce. See {SafeNonce-next}.
     function _proposeBatch(address safe_, address sender_) internal {
-        _safeMultiSig.initialize(safe_);
-        _propose(sender_, _safeMultiSig.getNonce());
+        _propose(sender_, SafeNonce.next(_safeMultiSig, safe_));
     }
 
     /// @dev Proposes the batch at an explicit nonce. The Safe's on-chain nonce only advances on execution, so

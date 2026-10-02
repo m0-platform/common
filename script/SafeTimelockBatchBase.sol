@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity >=0.8.20 <0.9.0;
 
+import { SafeNonce } from "./SafeNonce.sol";
 import { TimelockBatchBase } from "./TimelockBatchBase.sol";
 
+import { Enum } from "../lib/safe-utils/lib/safe-smart-account/contracts/common/Enum.sol";
 import { Safe } from "../lib/safe-utils/src/Safe.sol";
 import {
     TimelockController
@@ -33,8 +35,7 @@ abstract contract SafeTimelockBatchBase is TimelockBatchBase {
         uint256 delay = TimelockController(payable(timelock_)).getMinDelay();
         bytes memory batchData = _getScheduleBatchCallData(predecessor_, salt_, delay);
 
-        _safeMultiSig.initialize(safe_);
-        _safeMultiSig.proposeTransaction(timelock_, batchData, sender_);
+        _propose(safe_, timelock_, batchData, sender_);
     }
 
     /// @notice Proposes to cancel the execution of a pending message that was originally scheduled through a timelock.
@@ -48,7 +49,14 @@ abstract contract SafeTimelockBatchBase is TimelockBatchBase {
             revert OperationNotPending(id_);
         }
 
-        _safeMultiSig.initialize(safe_);
-        _safeMultiSig.proposeTransaction(timelock_, abi.encodeCall(TimelockController.cancel, id_), sender_);
+        _propose(safe_, timelock_, abi.encodeCall(TimelockController.cancel, id_), sender_);
+    }
+
+    /// @dev Proposes a call at the next free Safe nonce. See {SafeNonce-next}.
+    function _propose(address safe_, address to_, bytes memory data_, address sender_) private {
+        uint256 nonce_ = SafeNonce.next(_safeMultiSig, safe_);
+        bytes memory signature_ = _safeMultiSig.sign(to_, data_, Enum.Operation.Call, sender_, nonce_, "");
+
+        _safeMultiSig.proposeTransactionWithSignature(to_, data_, sender_, signature_, nonce_);
     }
 }
