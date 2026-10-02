@@ -31,6 +31,8 @@ abstract contract MultiSigBatchBase is Script {
     /// @dev Proposes the batch at an explicit nonce. The Safe's on-chain nonce only advances on execution, so
     ///      proposing at it can collide with already queued proposals instead of queueing behind them.
     function _proposeBatch(address safe_, address sender_, uint256 nonce_) internal {
+        console.log("Safe nonce:", nonce_);
+
         _safeMultiSig.initialize(safe_);
         _propose(sender_, nonce_);
     }
@@ -51,8 +53,6 @@ abstract contract MultiSigBatchBase is Script {
     }
 
     function _propose(address sender_, uint256 nonce_) private {
-        console.log("Safe nonce:", nonce_);
-
         (address to_, bytes memory data_) = _safeMultiSig.getProposeTransactionsTargetAndData(_targets, _data);
 
         // NOTE: Batches are executed via DelegateCall to preserve `msg.sender` across the sub-calls, and the signed
