@@ -68,6 +68,16 @@ contract TimelockBatchBaseTests is Test {
         _harness.proposeCancel(makeAddr("safe"), address(_timelock), address(this), id);
     }
 
+    function test_simulateBatch_leavesStateUntouched() external {
+        (address[] memory targets, , bytes[] memory payloads) = _updateDelayBatch(2 days);
+
+        _harness.addToBatch(targets[0], payloads[0]);
+
+        _harness.simulateBatch(address(_timelock));
+
+        assertEq(_timelock.getMinDelay(), _MIN_DELAY);
+    }
+
     function _updateDelayBatch(
         uint256 newDelay_
     ) internal view returns (address[] memory targets_, uint256[] memory values_, bytes[] memory payloads_) {

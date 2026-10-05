@@ -59,7 +59,7 @@ abstract contract MultiSigBatchBase is Script {
 
         // NOTE: The simulation executes the batch for real on the local fork, which advances the Safe nonce and
         //       applies the batch. Restoring the state keeps the nonce the proposal is later signed at correct.
-        vm.revertToState(snapshot_);
+        require(vm.revertToStateAndDelete(snapshot_), "State restore failed");
 
         require(success_, "Simulation failed");
     }
