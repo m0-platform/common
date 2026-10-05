@@ -16,6 +16,10 @@ contract TimelockBatchBaseHarness is SafeTimelockBatchBase {
         return _getOperationBatchId(target_, predecessor_, salt_);
     }
 
+    function simulateBatch(address timelock_) external {
+        _simulateBatch(timelock_);
+    }
+
     function proposeCancel(address safe_, address timelock_, address sender_, bytes32 id_) external {
         _proposeCancel(safe_, timelock_, sender_, id_);
     }

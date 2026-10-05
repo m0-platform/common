@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: UNLICENSED
-
 pragma solidity >=0.8.20 <0.9.0;
 
 import { SafeNonce } from "./SafeNonce.sol";
@@ -23,36 +22,54 @@ abstract contract MultiSigBatchBase is Script {
         _data.push(data_);
     }
 
-    /// @dev Proposes the batch at the next free Safe nonce. See {SafeNonce-next}.
+    /// @dev    Proposes the batch at the next free Safe nonce. See {SafeNonce-next}.
+    /// @param  safe_   The Safe to propose to.
+    /// @param  sender_ The owner signing the proposal.
     function _proposeBatch(address safe_, address sender_) internal {
-        _propose(sender_, SafeNonce.next(_safeMultiSig, safe_));
+        _safeMultiSig.initialize(safe_);
+        _propose(sender_, SafeNonce.next(_safeMultiSig));
     }
 
-    /// @dev Proposes the batch at an explicit nonce. The Safe's on-chain nonce only advances on execution, so
-    ///      proposing at it can collide with already queued proposals instead of queueing behind them.
+    /// @dev    Proposes the batch at an explicit nonce, for when the Safe transaction service cannot be queried or
+    ///         the batch must queue at a chosen position.
+    /// @param  safe_   The Safe to propose to.
+    /// @param  sender_ The owner signing the proposal.
+    /// @param  nonce_  The Safe nonce to propose at.
     function _proposeBatch(address safe_, address sender_, uint256 nonce_) internal {
-        console.log("Safe nonce:", nonce_);
-
         _safeMultiSig.initialize(safe_);
         _propose(sender_, nonce_);
     }
 
-    /// @dev Simulates the batch through the Safe itself, using synthetic owner approvals, so that the MultiSend
-    ///      encoding, the threshold check and any guard or fallback handler are exercised too.
+    /// @dev    Simulates the batch through the Safe itself, using synthetic owner approvals, so that the MultiSend
+    ///         encoding, the threshold check and any guard or fallback handler are exercised too.
+    /// @param  safe_ The Safe to simulate through.
     function _simulateBatch(address safe_) internal {
         _safeMultiSig.initialize(safe_);
 
         address[] memory owners_ = OwnerManager(safe_).getOwners();
+
+        uint256 snapshot_ = vm.snapshotState();
 
         // NOTE: `isolate` mode runs each top-level call as its own transaction, requiring the signer to pay for gas.
         for (uint256 i = 0; i < owners_.length; i++) {
             vm.deal(owners_[i], owners_[i].balance + 1 ether);
         }
 
-        require(_safeMultiSig.simulateTransactionsMultiSigNoSign(_targets, _data, owners_), "Simulation failed");
+        bool success_ = _safeMultiSig.simulateTransactionsMultiSigNoSign(_targets, _data, owners_);
+
+        // NOTE: The simulation executes the batch for real on the local fork, which advances the Safe nonce and
+        //       applies the batch. Restoring the state keeps the nonce the proposal is later signed at correct.
+        require(vm.revertToStateAndDelete(snapshot_), "State restore failed");
+
+        require(success_, "Simulation failed");
     }
 
+    /// @dev    Signs and proposes the batch at `nonce_` through the initialized Safe client.
+    /// @param  sender_ The owner signing the proposal.
+    /// @param  nonce_  The Safe nonce to propose at.
     function _propose(address sender_, uint256 nonce_) private {
+        console.log("[nonce] proposing at nonce", nonce_);
+
         (address to_, bytes memory data_) = _safeMultiSig.getProposeTransactionsTargetAndData(_targets, _data);
 
         // NOTE: Batches are executed via DelegateCall to preserve `msg.sender` across the sub-calls, and the signed
