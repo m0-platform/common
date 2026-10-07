@@ -46,7 +46,7 @@ library SafeNonce {
     /// @dev    Reverts if `response_` is not a 2xx answer.
     /// @param  onChain_  The Safe's on-chain nonce.
     /// @param  response_ The transaction service page of pending proposals, highest nonce first.
-    /// @return `onChain_` if no proposal is pending, else the highest pending nonce plus one.
+    /// @return `onChain_` if no proposal is pending at or above it, else the highest pending nonce plus one.
     function fromResponse(uint256 onChain_, HTTP.Response memory response_) internal pure returns (uint256) {
         if (response_.status < 200 || response_.status >= 300) {
             revert PendingProposalsQueryFailed(response_.status, response_.data);
@@ -54,7 +54,11 @@ library SafeNonce {
 
         if (_vm.parseJsonUint(response_.data, ".count") == 0) return onChain_;
 
-        return _vm.parseJsonUint(response_.data, ".results[0].nonce") + 1;
+        uint256 next_ = _vm.parseJsonUint(response_.data, ".results[0].nonce") + 1;
+
+        // NOTE: A service that ignores `nonce__gte` can return a stale proposal below the on-chain nonce, e.g. the
+        //       loser of a past collision. Never propose below the on-chain nonce.
+        return next_ > onChain_ ? next_ : onChain_;
     }
 
     /// @dev    Builds the transaction service query for the pending proposals at or above `onChain_`.

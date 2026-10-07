@@ -40,14 +40,21 @@ contract SafeNonceTests is Test {
         assertEq(harness.fromResponse(3, HTTP.Response({ status: 200, data: _pending(1, 3) })), 4);
     }
 
+    /// @dev A stale proposal below the on-chain nonce (the loser of a past collision) must not lower the nonce.
+    function test_fromResponse_pendingBelowOnChain() external view {
+        assertEq(harness.fromResponse(7, HTTP.Response({ status: 200, data: _pending(1, 3) })), 7);
+    }
+
     function testFuzz_fromResponse_pending(uint256 onChain_, uint256 count_, uint256 highest_) external view {
         onChain_ = bound(onChain_, 0, type(uint128).max);
         count_ = bound(count_, 1, type(uint128).max);
-        highest_ = bound(highest_, onChain_, type(uint128).max);
+        highest_ = bound(highest_, 0, type(uint128).max);
+
+        uint256 expected_ = highest_ + 1 > onChain_ ? highest_ + 1 : onChain_;
 
         assertEq(
             harness.fromResponse(onChain_, HTTP.Response({ status: 200, data: _pending(count_, highest_) })),
-            highest_ + 1
+            expected_
         );
     }
 
