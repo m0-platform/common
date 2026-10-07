@@ -35,15 +35,11 @@ library SafeNonce {
             .GET(_getPendingProposalsUrl(client_, onChain_))
             .request();
 
-        uint256 nonce_ = fromResponse(onChain_, response_);
-
-        console.log("[nonce] Safe on-chain nonce %d, next free nonce %d", onChain_, nonce_);
-
-        return nonce_;
+        return fromResponse(onChain_, response_);
     }
 
     /// @notice Returns the next free nonce from a page of pending proposals at or above `onChain_`.
-    /// @dev    Reverts if `response_` is not a 2xx answer.
+    /// @dev    Reverts if `response_` is not a 2xx answer. Logs the pending proposals as `[nonce]` lines.
     /// @param  onChain_  The Safe's on-chain nonce.
     /// @param  response_ The transaction service page of pending proposals, highest nonce first.
     /// @return `onChain_` if no proposal is pending at or above it, else the highest pending nonce plus one.
@@ -52,9 +48,23 @@ library SafeNonce {
             revert PendingProposalsQueryFailed(response_.status, response_.data);
         }
 
-        if (_vm.parseJsonUint(response_.data, ".count") == 0) return onChain_;
+        uint256 pendingCount_ = _vm.parseJsonUint(response_.data, ".count");
 
-        uint256 next_ = _vm.parseJsonUint(response_.data, ".results[0].nonce") + 1;
+        if (pendingCount_ == 0) {
+            console.log("[nonce] Safe nonce %d, no pending proposals", onChain_);
+            return onChain_;
+        }
+
+        uint256 highestPending_ = _vm.parseJsonUint(response_.data, ".results[0].nonce");
+
+        console.log(
+            "[nonce] Safe nonce %d, %d pending proposal(s) up to nonce %d",
+            onChain_,
+            pendingCount_,
+            highestPending_
+        );
+
+        uint256 next_ = highestPending_ + 1;
 
         // NOTE: A service that ignores `nonce__gte` can return a stale proposal below the on-chain nonce, e.g. the
         //       loser of a past collision. Never propose below the on-chain nonce.
