@@ -87,6 +87,8 @@ abstract contract TimelockBatchBase is Script {
     /// @notice Simulates the timelock execution based on the accumulated call stack.
     /// @param timelock_ The address of the timelock contract to execute from.
     function _simulateBatch(address timelock_) internal {
+        uint256 snapshot_ = vm.snapshotState();
+
         vm.startPrank(timelock_);
 
         for (uint256 i = 0; i < _timelockTargets.length; i++) {
@@ -95,5 +97,9 @@ abstract contract TimelockBatchBase is Script {
         }
 
         vm.stopPrank();
+
+        // NOTE: The simulation executes the batch for real on the local fork. Restoring the state keeps the
+        //       proposal built from the current chain state, e.g. the timelock's minimum delay.
+        require(vm.revertToStateAndDelete(snapshot_), "State restore failed");
     }
 }
